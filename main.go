@@ -1,8 +1,6 @@
 package main
 
-import (
-	"simple_redis.com/m/src/server"
-)
+import "simple_redis.com/m/src/server"
 
 func main() {
 	srv := server.CreateServer("localhost", "6379")
