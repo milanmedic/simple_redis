@@ -71,12 +71,12 @@ func (r RespReader) ReadArray() (resp.ParsedValue, error) {
 	arr := make([]resp.ParsedValue, size)
 	v.SetArray(arr)
 	for i := 0; i < size; i++ {
-		v, err := r.Read()
+		val, err := r.Read()
 		if err != nil {
 			return v, err
 		}
 		arr = v.GetArray()
-		arr = append(arr, v)
+		arr[i] = val
 		v.SetArray(arr)
 	}
 
