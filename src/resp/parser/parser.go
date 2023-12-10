@@ -5,29 +5,9 @@ import (
 	"errors"
 	"io"
 	"strconv"
+
+	"simple_redis.com/m/src/resp"
 )
-
-const (
-	CL = '\r'
-	RF = '\n'
-)
-
-type RESP_TYPE string
-
-const ( // most common RESP types
-	ARRAY   RESP_TYPE = "*"
-	BULK    RESP_TYPE = "$"
-	INT     RESP_TYPE = ":"
-	BOOLEAN RESP_TYPE = "#"
-	ERROR   RESP_TYPE = "-"
-	STRING  RESP_TYPE = "+"
-)
-
-type ParsedValue struct {
-	_type  RESP_TYPE
-	_bulk  string
-	_array []ParsedValue
-}
 
 type RespReader struct {
 	reader *bufio.Reader
@@ -37,10 +17,10 @@ func NewRespReader(rd io.Reader) *RespReader {
 	return &RespReader{reader: bufio.NewReader(rd)}
 }
 
-func (r RespReader) Read() (ParsedValue, error) {
+func (r RespReader) Read() (resp.ParsedValue, error) {
 	sign, err := r.reader.ReadByte()
 	if err != nil {
-		return ParsedValue{}, err
+		return resp.ParsedValue{}, err
 	}
 
 	switch sign {
@@ -49,14 +29,14 @@ func (r RespReader) Read() (ParsedValue, error) {
 	case '$':
 		return r.ReadBulk()
 	default:
-		return ParsedValue{}, errors.New("NOT IMPLEMENTED")
+		return resp.ParsedValue{}, errors.New("NOT IMPLEMENTED")
 	}
 }
 
 // $5\r\nhello\r\n
-func (r RespReader) ReadBulk() (ParsedValue, error) {
-	val := ParsedValue{}
-	val._type = BULK
+func (r RespReader) ReadBulk() (resp.ParsedValue, error) {
+	val := resp.ParsedValue{}
+	val.SetType(resp.BULK)
 
 	size, err := r.ReadNumber()
 	if err != nil {
@@ -70,7 +50,7 @@ func (r RespReader) ReadBulk() (ParsedValue, error) {
 		return val, err
 	}
 
-	val._bulk = string(line)
+	val.SetBulk(string(line))
 
 	// read trailing \r\n - meaning we've read the whole string
 	r.ReadLine()
@@ -79,25 +59,28 @@ func (r RespReader) ReadBulk() (ParsedValue, error) {
 }
 
 // *2\r\n$5\r\nhello\r\n$5\r\nworld\r\n
-func (r RespReader) ReadArray() (ParsedValue, error) {
-	val := ParsedValue{}
-	val._type = ARRAY
+func (r RespReader) ReadArray() (resp.ParsedValue, error) {
+	v := resp.ParsedValue{}
+	v.SetType(resp.ARRAY)
+
 	size, err := r.ReadNumber()
 	if err != nil {
-		return val, err
+		return v, err
 	}
 
-	val._array = make([]ParsedValue, size)
+	arr := make([]resp.ParsedValue, size)
+	v.SetArray(arr)
 	for i := 0; i < size; i++ {
-		v, err := r.Read()
+		val, err := r.Read()
 		if err != nil {
 			return v, err
 		}
-
-		v._array = append(v._array, v)
+		arr = v.GetArray()
+		arr[i] = val
+		v.SetArray(arr)
 	}
 
-	return val, nil
+	return v, nil
 }
 
 /*
@@ -117,7 +100,7 @@ func (r RespReader) ReadLine() (line []byte, err error) {
 
 		line = append(line, b)
 
-		if len(line) >= 2 && line[len(line)-2] == CL {
+		if len(line) >= 2 && line[len(line)-2] == resp.CL {
 			break
 		}
 	}
